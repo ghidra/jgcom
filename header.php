@@ -7,6 +7,14 @@
 </head>
 <body>
 <header>
+<div class="header_container">
+<div class="header_title">
 <h1>jimmygass.com</h1>
-<br><br>
+</div>
+<div class="header_nav">
+<a href="https://www.linkedin.com/in/nervegass/">linkedin</a><br>
+<a href="https://www.instagram.com/jimmy_gass/">instagram</a><br><br>
+<a>about</a>
+</div>
+</div>
 </header>
