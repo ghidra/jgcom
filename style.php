@@ -44,5 +44,41 @@ body{
    top: 0;
    width: 100%;
 }
+.clickable{
+  cursor: pointer;
+}
+#overlay{
+  position:absolute;
+  top:0;
+  left:0;
+  width: 100%;
+  z-index:1;
+  height: 100%;
+}
+
+#overlay div{
+  position: relative; 
+  left: 50%; 
+  margin-left:-150px;
+  border: 1px solid #666;
+  background-color: #000;
+  border-radius:5px;
+  color: #FFF;
+  width:300px;
+  z-index:3;
+  top:10px;
+}
+
+#overlay div.background{
+  position: absolute; 
+  width:100%;
+  height: 100%;
+  margin:auto;
+  background-color: #000;
+  opacity:0.5;
+  z-index:2;
+  top:0;
+  left:0;
+}
 
 </style>

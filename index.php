@@ -32,7 +32,7 @@ $vfx_array = array(
 function video_entry($title,$link,$page)
 {
 	return '<div class="grid-item">
-	<h4>'.$title.'</h4>
+	<div onclick="loadOverlayPage(\''.$page.'\')" class="clickable"><h4>'.$title.'</h4></div>
 	<div class="grid-iframe">
 	<iframe src="'.$link.'" frameborder="0" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen>
 	</iframe>

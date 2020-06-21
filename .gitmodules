@@ -1,0 +1,3 @@
+[submodule "rad"]
+	path = rad
+	url = git@github.com:ghidra/rad.git
