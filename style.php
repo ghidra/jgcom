@@ -9,23 +9,26 @@ body{
 }
 .header_title{
   grid-column: 1 / 3;
-  padding-left:60px;
+  padding-left:80px;
 }
 .header_nav{
   grid-column: 4;
+  text-align: right;
+  padding-right:80px;
 }
 
 .grid-container {
   display: grid;
-  grid-column-gap: 2px;
+  grid-column-gap: 20px;
   grid-template-columns: auto auto;
-  padding: 40px;
-  grid-row-gap: 2px;
+  padding: 60px;
+  grid-row-gap: 40px;
 }
 
 .grid-item {
-  border: 1px solid;
-  border-color:#111111;
+  /*border: 1px solid;*/
+  /*border-color:#111111;*/
+  background-color: #111111;
   margin:10px;
   padding:20px;
 }
@@ -43,6 +46,10 @@ body{
    position: absolute;
    top: 0;
    width: 100%;
+}
+.desription{
+  padding-top:20px;
+  color:#555555;
 }
 .clickable{
   cursor: pointer;

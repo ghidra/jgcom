@@ -13,7 +13,7 @@
 	</script>
 </head>
 <body>
-	<div id="overlay">
+	<div id="overlay" style="display:none">
 		<div id="overlay_container"></div>
 		<div id="overlay_background"></div>
 	</div>
