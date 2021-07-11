@@ -6,14 +6,14 @@ pageLoaded=function(){
 }
 
 loadOverlayPage=function(page){
-	alert(page);
+	//alert(page);
 	js.ajax.get(
 		"ajax.php",
 		"q=get_page&page="+page,
 		function(lamda){
-			alert(lamda);
-			//data = JSON.parse(lamda);
-			//alert(data.html);
+			//alert(lamda);
+			data = JSON.parse(lamda);
+			alert(data.html);
 		}
 	);
 }

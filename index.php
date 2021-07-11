@@ -27,6 +27,7 @@ $vfx_array = array(
 	"work/beyonce.php"
 );
 //missing direct tv
+//missing att blooming communities
 //
 
 function video_entry($data,$page)
