@@ -1,6 +1,17 @@
 <?php
 include_once('header.php');
 
+$epic_array = array(
+	"work/legofortniteninjago.php",
+	"work/legofortniteexpedition.php",
+	"work/legofortniteodyssey.php",
+	"work/legofortnitelostisles.php",
+	"work/legofortnite.php",
+	"work/valley.php",
+	"work/mustang.php",
+	"work/hmi.php"
+);
+
 $rt_array = array(
 	"work/seesound.php", 
 	"work/uproar.php",
@@ -45,10 +56,11 @@ function video_entry($data,$page)
 //echo '<h2>Realtime</h2>';
 
 echo '<div class="grid-container">';
-
-foreach ($rt_array as $v)
-{
-	//echo video_entry($v[0],$v[1],$v[2]);
+foreach ($epic_array as $v){
+	include_once($v);
+	echo video_entry($payload,$v);
+}
+foreach ($rt_array as $v){
 	include_once($v);
 	echo video_entry($payload,$v);
 }
@@ -60,10 +72,7 @@ foreach ($rt_array as $v)
 
 //echo '<div class="grid-container">';
 
-foreach ($vfx_array as $v)
-{
-	//echo video_entry($v[0],$v[1],$v[2]);
-	//include_once($v);
+foreach ($vfx_array as $v){
 	include_once($v);
 	echo video_entry($payload,$v);
 }
