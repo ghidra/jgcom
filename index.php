@@ -4,6 +4,7 @@ include_once('header.php');
 $rt_array = array(
 	"work/seesound.php", 
 	"work/uproar.php",
+	"work/tonandi.php",
 	"work/savage.php",
 	"work/aicp.php",
 	"work/nikejoyride.php",
@@ -13,8 +14,6 @@ $rt_array = array(
 );
 //missing sould cycle
 //missing watchman
-//missing tonandi
-//
 
 $vfx_array = array(
 	"work/hennessypiccards.php", 
@@ -28,7 +27,6 @@ $vfx_array = array(
 );
 //missing direct tv
 //missing att blooming communities
-//
 
 function video_entry($data,$page)
 {

@@ -1,5 +1,5 @@
 <footer>
-2020
+&nbsp-<?php echo date("Y"); ?>
 </footer>
 </body>
 </html>
