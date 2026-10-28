@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wander</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAlklEQVR4nGNkIAAWSJ35T0gNMkh4ZsJIinomUhTTAow6gIVUDUemGeNXEECaeQMeAqMOIDkN2GSdxSs/h0TzBjwERh2AmQa0OlDL/g8kmoiu/1oF3rphwENg1AEEywGCZT86qNpDkvIBD4FRBxBMA4TKfnQwR4A0Bwx4CIw6gGAbHr1fgN7uJyRPCAx4CIw6YNQBow4AAH/IGrhgsLz/AAAAAElFTkSuQmCC">
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #000; color: #ccc; }
+    body { margin: 0; padding: 16px; }
+    main { max-width: 768px; margin: auto; }
+    #screen { width: 100%; aspect-ratio: 256 / 240; background: #000; display: grid; place-items: center; }
+    #screen canvas { display: block; image-rendering: pixelated; }
+    #screen:focus-visible { outline: 2px solid #b5c8ff; outline-offset: 4px; }
+    .buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    button { font: inherit; border: 1px solid #444; border-radius: 4px; padding: 7px 12px; background: #171717; color: inherit; cursor: pointer; }
+    button:hover:not(:disabled) { background: #292929; }
+    button:disabled { opacity: .45; cursor: default; }
+    #touch-controls { display: none; }
+    #touch-controls button { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; font-weight: 750; }
+    #touch-controls button.held { background: #3b4561; border-color: #b5c8ff; color: #fff; }
+    .dpad { display: grid; grid-template: repeat(3, 48px) / repeat(3, 48px); gap: 2px; touch-action: none; }
+    .dpad [data-nes="up"] { grid-area: 1 / 2; }
+    .dpad [data-nes="left"] { grid-area: 2 / 1; }
+    .dpad [data-nes="right"] { grid-area: 2 / 3; }
+    .dpad [data-nes="down"] { grid-area: 3 / 2; }
+    .dpad-label { grid-area: 2 / 2; align-self: center; text-align: center; font-size: .65rem; color: #999; }
+    .touch-actions { display: flex; align-items: center; gap: 8px; }
+    .touch-actions button { width: 54px; height: 54px; border-radius: 50%; font-size: 1.25rem; }
+    .touch-actions [data-nes="a"] { transform: translateY(-15px); }
+    .touch-system button { min-height: 44px; padding: 7px 10px; }
+    .touch-system { display: flex; flex-direction: column; gap: 6px; }
+    @media (any-pointer: coarse) {
+      body { padding: 10px; }
+      #touch-controls { display: flex; justify-content: space-between; align-items: center; gap: 6px; max-width: 520px; margin: 12px auto 0; }
+      #screen { width: min(100%, calc((100svh - 190px) * 256 / 240)); margin: auto; }
+    }
+    @media (max-width: 380px) {
+      .dpad { grid-template: repeat(3, 42px) / repeat(3, 42px); gap: 1px; }
+      .touch-actions { gap: 6px; }
+      .touch-actions button { width: 48px; height: 48px; }
+      .touch-system button { font-size: .8rem; padding: 7px 8px; }
+    }
+    #status { min-height: 1.5em; color: #999; font-size: .85rem; }
+    .volume { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+    #volume { width: 110px; accent-color: #aaa; }
+    #volume-value { min-width: 4ch; }
+    details { margin-top: 8px; }
+    summary { cursor: pointer; padding: 4px 0; }
+    .note, footer { color: #888; font-size: .85rem; line-height: 1.6; }
+    footer { margin-top: 16px; }
+    a { color: #aaa; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; margin: 8px 0; font-size: .9rem; }
+    th, td { text-align: left; padding: 5px 16px 5px 0; vertical-align: middle; }
+    th { color: #888; font-weight: 500; font-size: .8rem; }
+    td:first-child { font-weight: 650; white-space: nowrap; }
+    .bind { min-width: 11ch; padding: 4px 10px; white-space: nowrap; }
+    .bind.unbound { color: #777; font-style: italic; }
+    .bind.listening { border-color: #b5c8ff; color: #dfe6ff; background: #1c2233; }
+    .row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 8px 0; }
+    .check { display: flex; align-items: center; gap: 6px; }
+    .check input { accent-color: #aaa; }
+    fieldset { border: 1px solid #333; border-radius: 4px; margin: 12px 0; padding: 8px 12px 12px; }
+    legend { color: #999; font-size: .85rem; padding: 0 6px; }
+    .sliders { display: grid; grid-template-columns: max-content minmax(0, 1fr) 5ch; align-items: center; gap: 6px 12px; font-size: .85rem; }
+    .sliders input { width: 100%; accent-color: #aaa; }
+    .sliders output { text-align: right; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="screen" tabindex="0" aria-label="Game screen. Controls are listed below."></div>
+    <div id="touch-controls" role="group" aria-label="Touch game controls">
+      <div class="dpad" role="group" aria-label="D-pad">
+        <button type="button" data-nes="up" aria-label="Up">↑</button>
+        <button type="button" data-nes="left" aria-label="Left">←</button>
+        <span class="dpad-label">D-PAD</span>
+        <button type="button" data-nes="right" aria-label="Right">→</button>
+        <button type="button" data-nes="down" aria-label="Down">↓</button>
+      </div>
+      <div class="touch-system">
+        <button type="button" data-nes="select" aria-label="Select: launch when ready">Select</button>
+        <button type="button" data-nes="start">Start</button>
+      </div>
+      <div class="touch-actions">
+        <button type="button" data-nes="b" aria-label="B: run and harvest">B</button>
+        <button type="button" data-nes="a" aria-label="A: jump and confirm">A</button>
+      </div>
+    </div>
+    <div class="buttons">
+      <button id="play" disabled>Play</button>
+      <button id="restart" disabled>Restart</button>
+      <button id="mute" aria-pressed="false">Mute</button>
+      <label class="volume" for="volume">Volume
+        <input id="volume" type="range" min="0" max="100" step="1" value="10">
+        <output id="volume-value" for="volume">10%</output>
+      </label>
+    </div>
+    <p id="status" role="status">Loading game…</p>
+    <details id="controls">
+      <summary>Controls</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Button</th><th>Keyboard</th><th>Gamepad</th></tr></thead>
+          <tbody id="bindings"></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button id="reset-bindings">Reset to defaults</button>
+        <span id="binding-status" class="note" role="status"></span>
+      </div>
+      <p class="note">To change a control, choose its key or gamepad button, then press the new one.
+        Escape cancels the change; during play it pauses the emulator. A key already in use swaps
+        with the old one. Your choices are saved in this browser.</p>
+      <p class="note">Start opens the storage/unlock menu. B or Start closes it.</p>
+      <p class="note">Player 2 controls the companion with I/J/K/L to move, M to jump and N to run,
+        or a second gamepad. The first gamepad controls player 1; the second controls player 2
+        using the same button bindings. Player 1’s custom keyboard bindings take priority.</p>
+      <p class="note">On touchscreens, use the labeled D-pad, Select, Start, A and B below the game.
+        Hold B to run and tap it to harvest; A jumps or confirms. Select launches your ship when its prompt appears. You can hold multiple buttons together.
+        Keyboard and compatible gamepads also work. Progress lasts for this session only:
+        restarting or reloading clears your game. Leaving the tab pauses play; choose Resume to continue.</p>
+    </details>
+    <details id="display">
+      <summary>Display</summary>
+      <div class="row" id="effects"></div>
+      <p id="display-note" class="note" hidden></p>
+      <fieldset id="dev-panel" hidden>
+        <legend>Effect tuning (dev)</legend>
+        <div class="sliders" id="sliders"></div>
+        <div class="row">
+          <button id="reset-tuning">Reset values</button>
+          <button id="copy-tuning">Copy link with these values</button>
+          <span id="tuning-status" class="note" role="status"></span>
+        </div>
+      </fieldset>
+    </details>
+    <footer>Powered by <a href="https://github.com/bfirsh/jsnes">JSNES</a> ·
+      <a href="./JSNES-LICENSE.txt">Emulator license</a></footer>
+    <noscript><p>Enable JavaScript to play.</p></noscript>
+  </main>
+  <!-- Deploy this page alongside wander.nes, jsnes.min.js (2.1.0), and JSNES-LICENSE.txt. -->
+  <script src="./jsnes.min.js"></script>
+  <script src="./renderer.js"></script>
+  <script id="frame-clock">
+    // JSNES 2.1.0 integration: audio starvation must never advance gameplay.
+    // Keep this clock inline so preview and itch retain the same five-file payload.
+    function installFrameClock(emulator) {
+      const timer = emulator._frameTimer;
+      const interval = 1000 / 60.098;
+      let active = false;
+      let request = null;
+      let previous = 0;
+      let elapsed = 0;
+
+      emulator._speakers.onBufferUnderrun = () => {};
+      timer.start = () => {
+        if (active) return;
+        active = true;
+        previous = performance.now();
+        elapsed = 0;
+        request = requestAnimationFrame(tick);
+      };
+      timer.stop = () => {
+        active = false;
+        if (request !== null) cancelAnimationFrame(request);
+        request = null;
+        elapsed = 0;
+      };
+      function tick(now) {
+        request = null;
+        if (!active) return;
+        // Discard long-stall debt instead of replaying seconds of gameplay.
+        elapsed = Math.min(elapsed + Math.max(0, now - previous), interval * 5);
+        previous = now;
+        let generated = false;
+        while (active && elapsed >= interval) {
+          elapsed -= interval;
+          timer.onGenerateFrame();
+          generated = true;
+        }
+        if (!active) return; // onGenerateFrame can stop on an emulator error.
+        if (generated) timer.onWriteFrame();
+        request = requestAnimationFrame(tick);
+      }
+    }
+  </script>
+  <script>
+    "use strict";
+    const screen = document.getElementById("screen");
+    const play = document.getElementById("play");
+    const restart = document.getElementById("restart");
+    const status = document.getElementById("status");
+    const mute = document.getElementById("mute");
+    const volume = document.getElementById("volume");
+    const volumeValue = document.getElementById("volume-value");
+    const params = new URLSearchParams(location.search);
+    const devMode = params.has("dev") && params.get("dev") !== "0";
+    let muted = false;
+    let audioGain = 0.1;
+    let emulator = null;
+    let glScreen = null;
+    let rom = null;
+    let running = false;
+    let failed = false;
+
+    // Saved settings are optional: storage may be blocked or hold old data.
+    function loadSaved(key) {
+      try { return JSON.parse(localStorage.getItem(key)) ?? {}; } catch { return {}; }
+    }
+    function save(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* not saved */ }
+    }
+
+    function updateVolume() {
+      audioGain = muted ? 0 : Number(volume.value) / 100;
+      volumeValue.value = muted ? "Muted" : volume.value + "%";
+      mute.textContent = muted ? "Unmute" : "Mute";
+      mute.setAttribute("aria-pressed", String(muted));
+    }
+    volume.addEventListener("input", () => { muted = false; updateVolume(); });
+    mute.addEventListener("click", () => { muted = !muted; updateVolume(); });
+
+    // ---- Controls -------------------------------------------------------
+    // Each NES button has one keyboard key (KeyboardEvent.code) and one
+    // gamepad input: "b<index>" for a button, "a<index>+" / "a<index>-" for an
+    // axis direction. Gamepad defaults follow the browser's standard mapping,
+    // with NES A on the right face button and B on the bottom, as on a
+    // Nintendo pad.
+    const BINDINGS_KEY = "wander.bindings.v1";
+    const c = window.jsnes?.Controller ?? {};
+    const BUTTONS = [
+      { id: "up", label: "Up", button: c.BUTTON_UP, key: "ArrowUp", pad: "b12" },
+      { id: "down", label: "Down", button: c.BUTTON_DOWN, key: "ArrowDown", pad: "b13" },
+      { id: "left", label: "Left", button: c.BUTTON_LEFT, key: "ArrowLeft", pad: "b14" },
+      { id: "right", label: "Right", button: c.BUTTON_RIGHT, key: "ArrowRight", pad: "b15" },
+      { id: "a", label: "A", button: c.BUTTON_A, key: "KeyF", pad: "b1" },
+      { id: "b", label: "B", button: c.BUTTON_B, key: "KeyD", pad: "b0" },
+      { id: "select", label: "Select", button: c.BUTTON_SELECT, key: "KeyS", pad: "b8" },
+      { id: "start", label: "Start", button: c.BUTTON_START, key: "Enter", pad: "b9" }
+    ];
+    // Keys the page needs for itself or that the game can never see.
+    const RESERVED_KEYS = new Set(["Escape", "Tab", "ControlLeft", "ControlRight", "AltLeft",
+      "AltRight", "MetaLeft", "MetaRight", "OSLeft", "OSRight", "ContextMenu"]);
+    const PAD_THRESHOLD = 0.5;
+
+    const bindings = {};
+    function setDefaultBindings() {
+      for (const { id, key, pad } of BUTTONS) bindings[id] = { key, pad };
+    }
+    function loadBindings() {
+      setDefaultBindings();
+      const saved = loadSaved(BINDINGS_KEY);
+      for (const { id } of BUTTONS) {
+        for (const kind of ["key", "pad"]) {
+          const value = saved[id]?.[kind];
+          if (value === null || (typeof value === "string" && !RESERVED_KEYS.has(value))) {
+            bindings[id][kind] = value;
+          }
+        }
+      }
+    }
+
+    // Held state from each source; the emulator sees a button while any holds it.
+    const keyHeld = new Set();
+    const padHeld = new Set();
+    const touchHeld = new Set();
+    const touchPointers = new Map();
+    const touchControls = document.getElementById("touch-controls");
+    const touchButtons = [...touchControls.querySelectorAll("[data-nes]")];
+    const keyHeld2 = new Set();
+    const padHeld2 = new Set();
+    const keys2 = { KeyI: "up", KeyK: "down", KeyJ: "left", KeyL: "right", KeyM: "a", KeyN: "b" };
+    const padSeats = [null, null];
+    function syncButton2(entry) {
+      if (!emulator) return;
+      if (keyHeld2.has(entry.id) || padHeld2.has(entry.id)) emulator.nes.buttonDown(2, entry.button);
+      else emulator.nes.buttonUp(2, entry.button);
+    }
+    function syncButton(entry) {
+      if (!emulator) return;
+      if (keyHeld.has(entry.id) || padHeld.has(entry.id) || touchHeld.has(entry.id)) emulator.nes.buttonDown(1, entry.button);
+      else emulator.nes.buttonUp(1, entry.button);
+    }
+    function releaseButtons() {
+      keyHeld.clear();
+      padHeld.clear();
+      touchPointers.clear();
+      touchHeld.clear();
+      for (const button of touchButtons) button.classList.remove("held");
+      keyHeld2.clear();
+      padHeld2.clear();
+      if (!emulator) return;
+      for (let player = 1; player <= 2; player++) {
+        for (let button = 0; button < 10; button++) emulator.nes.buttonUp(player, button);
+      }
+    }
+
+    function syncTouch() {
+      touchHeld.clear();
+      for (const id of touchPointers.values()) if (id) touchHeld.add(id);
+      for (const button of touchButtons) button.classList.toggle("held", touchHeld.has(button.dataset.nes));
+      for (const entry of BUTTONS) syncButton(entry);
+    }
+    function touchTarget(event) {
+      const button = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-nes]");
+      return button && touchControls.contains(button) ? button.dataset.nes : null;
+    }
+    touchControls.addEventListener("pointerdown", event => {
+      if (!running || listening || event.button !== 0 || !event.target.closest("[data-nes], .dpad")) return;
+      event.preventDefault();
+      touchControls.setPointerCapture(event.pointerId);
+      touchPointers.set(event.pointerId, touchTarget(event));
+      syncTouch();
+    });
+    touchControls.addEventListener("pointermove", event => {
+      if (!touchPointers.has(event.pointerId)) return;
+      event.preventDefault();
+      touchPointers.set(event.pointerId, touchTarget(event));
+      syncTouch();
+    });
+    function releaseTouch(event) {
+      if (touchPointers.delete(event.pointerId)) syncTouch();
+    }
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      touchControls.addEventListener(type, releaseTouch);
+    }
+    touchControls.addEventListener("contextmenu", event => event.preventDefault());
+
+    // Letters follow the user's keyboard layout where the browser can tell us.
+    let layoutMap = null;
+    navigator.keyboard?.getLayoutMap?.().then(map => { layoutMap = map; renderBindings(); }).catch(() => {});
+    const ARROWS = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+    function keyLabel(code) {
+      if (ARROWS[code]) return ARROWS[code];
+      const printable = /^(Key|Digit)/.test(code) && layoutMap?.get(code);
+      if (printable) return printable.toUpperCase();
+      let match;
+      if ((match = code.match(/^(?:Key|Digit)(.)$/))) return match[1];
+      if ((match = code.match(/^Numpad(.*)$/))) return "Num " + match[1];
+      if ((match = code.match(/^(Shift|Control|Alt|Meta)(Left|Right)$/))) return match[2] + " " + match[1];
+      return code.replace(/([a-z])([A-Z0-9])/g, "$1 $2");
+    }
+    const PAD_BUTTON_NAMES = ["Bottom face", "Right face", "Left face", "Top face", "L1", "R1", "L2", "R2",
+      "Select / Back", "Start", "L3", "R3", "D-pad ↑", "D-pad ↓", "D-pad ←", "D-pad →", "Home"];
+    const PAD_AXIS_NAMES = { "a0-": "Left stick ←", "a0+": "Left stick →", "a1-": "Left stick ↑",
+      "a1+": "Left stick ↓", "a2-": "Right stick ←", "a2+": "Right stick →", "a3-": "Right stick ↑",
+      "a3+": "Right stick ↓" };
+    function padLabel(code) {
+      if (code[0] === "b") return PAD_BUTTON_NAMES[Number(code.slice(1))] ?? "Button " + code.slice(1);
+      return PAD_AXIS_NAMES[code] ?? "Axis " + code.slice(1);
+    }
+    function padInputActive(gamepad, code) {
+      const index = Number.parseInt(code.slice(1), 10);
+      if (code[0] === "b") return Boolean(gamepad.buttons[index]?.pressed);
+      const value = gamepad.axes[index] ?? 0;
+      return code.endsWith("-") ? value <= -PAD_THRESHOLD : value >= PAD_THRESHOLD;
+    }
+    function activePadInputs(gamepad) {
+      const active = new Set();
+      gamepad.buttons.forEach((button, index) => { if (button.pressed) active.add("b" + index); });
+      gamepad.axes.forEach((value, index) => {
+        if (value <= -PAD_THRESHOLD) active.add("a" + index + "-");
+        if (value >= PAD_THRESHOLD) active.add("a" + index + "+");
+      });
+      return active;
+    }
+
+    const bindingRows = document.getElementById("bindings");
+    const bindingStatus = document.getElementById("binding-status");
+    // { id, kind, element, baseline } while waiting for a new key or gamepad input.
+    let listening = null;
+
+    const bindButtons = new Map();  // "<id>.<kind>" -> button element
+    function buildBindings() {
+      bindingRows.replaceChildren(...BUTTONS.map(entry => {
+        const row = document.createElement("tr");
+        const name = document.createElement("td");
+        name.textContent = entry.label;
+        row.append(name);
+        for (const kind of ["key", "pad"]) {
+          const cell = document.createElement("td");
+          const bind = document.createElement("button");
+          bind.addEventListener("click", () => startListening(entry.id, kind, bind));
+          bindButtons.set(entry.id + "." + kind, bind);
+          cell.append(bind);
+          row.append(cell);
+        }
+        return row;
+      }));
+      renderBindings();
+    }
+
+    function bindingLabel(kind, value) {
+      if (!value) return "None";
+      return kind === "key" ? keyLabel(value) : padLabel(value);
+    }
+    function renderBindings() {
+      for (const entry of BUTTONS) {
+        for (const kind of ["key", "pad"]) {
+          const bind = bindButtons.get(entry.id + "." + kind);
+          const value = bindings[entry.id][kind];
+          const device = kind === "key" ? "keyboard key" : "gamepad input";
+          bind.className = "bind" + (value ? "" : " unbound");
+          bind.textContent = bindingLabel(kind, value);
+          bind.setAttribute("aria-label", `${entry.label} ${device}: ${bind.textContent}. Choose to change.`);
+        }
+      }
+      updateStartHint();
+    }
+
+    function startListening(id, kind, element) {
+      stopListening();
+      const pads = [...(navigator.getGamepads?.() ?? [])].filter(Boolean);
+      if (kind === "pad" && pads.length === 0) {
+        bindingStatus.textContent = "No gamepad detected. Connect one and press any of its buttons first.";
+      } else {
+        bindingStatus.textContent = "";
+      }
+      // Inputs already held when listening starts don't count as the choice.
+      const baseline = new Map(pads.map(gamepad => [gamepad.index, activePadInputs(gamepad)]));
+      listening = { id, kind, element, baseline };
+      element.classList.add("listening");
+      element.textContent = kind === "key" ? "Press a key…" : "Press a button…";
+    }
+    function stopListening() {
+      if (!listening) return;
+      listening = null;
+      renderBindings();
+    }
+    function assign(value) {
+      const { id, kind } = listening;
+      const previous = bindings[id][kind];
+      const other = BUTTONS.find(entry => entry.id !== id && bindings[entry.id][kind] === value);
+      if (other) bindings[other.id][kind] = previous;
+      bindings[id][kind] = value;
+      save(BINDINGS_KEY, bindings);
+      const label = BUTTONS.find(entry => entry.id === id).label;
+      bindingStatus.textContent = other
+        ? `${label} set. ${other.label} now uses ${bindingLabel(kind, previous)}.`
+        : `${label} set.`;
+      const { element } = listening;
+      listening = null;
+      releaseButtons();
+      renderBindings();
+      // Game keys are ignored while a control has focus; release it so the
+      // new binding can be tried straight away.
+      element.blur();
+    }
+
+    document.getElementById("reset-bindings").addEventListener("click", () => {
+      listening = null;
+      setDefaultBindings();
+      save(BINDINGS_KEY, bindings);
+      releaseButtons();
+      renderBindings();
+      bindingStatus.textContent = "Controls reset to defaults.";
+    });
+
+    // Capture phase, so a key chosen while listening never reaches the game
+    // or the Escape-to-pause handler.
+    window.addEventListener("keydown", event => {
+      if (!listening) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.code === "Escape") { stopListening(); bindingStatus.textContent = "Unchanged."; return; }
+      if (listening.kind !== "key") return;
+      if (RESERVED_KEYS.has(event.code)) {
+        bindingStatus.textContent = `${keyLabel(event.code)} can't be used. Choose another key.`;
+        return;
+      }
+      assign(event.code);
+    }, true);
+    window.addEventListener("keyup", event => { if (listening) event.stopImmediatePropagation(); }, true);
+    document.addEventListener("focusout", event => {
+      if (listening && event.target === listening.element) stopListening();
+    });
+
+    function keyBoundTo(code) {
+      return BUTTONS.find(entry => bindings[entry.id].key === code);
+    }
+    document.addEventListener("keydown", event => {
+      if (!running || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.code === "Escape") { event.preventDefault(); pause(); return; }
+      if (event.target.closest?.("button, a, input, select, textarea, summary")) return;
+      const entry = keyBoundTo(event.code);
+      if (entry) {
+        event.preventDefault();
+        keyHeld.add(entry.id);
+        syncButton(entry);
+      } else if (keys2[event.code]) {
+        event.preventDefault();
+        const second = BUTTONS.find(button => button.id === keys2[event.code]);
+        keyHeld2.add(second.id);
+        syncButton2(second);
+      }
+    });
+    document.addEventListener("keyup", event => {
+      const entry = keyBoundTo(event.code);
+      if (entry && keyHeld.delete(entry.id)) syncButton(entry);
+      const second = BUTTONS.find(button => button.id === keys2[event.code]);
+      if (second && keyHeld2.delete(second.id)) syncButton2(second);
+    });
+
+    // Gamepads have no events for input, so poll once per display frame.
+    function pollGamepads() {
+      const pads = [...(navigator.getGamepads?.() ?? [])].filter(Boolean);
+      if (listening?.kind === "pad") {
+        for (const gamepad of pads) {
+          const before = listening.baseline.get(gamepad.index) ?? new Set();
+          const now = activePadInputs(gamepad);
+          const chosen = [...now].find(code => !before.has(code));
+          if (chosen) { assign(chosen); break; }
+          // Released inputs may be pressed again as the choice.
+          listening.baseline.set(gamepad.index, new Set([...before].filter(code => now.has(code))));
+        }
+      } else if (running && !listening) {
+        // Retain the other player's seat when a controller disconnects.
+        for (let seat = 0; seat < 2; seat++) {
+          if (!pads.some(pad => pad.index === padSeats[seat])) padSeats[seat] = null;
+        }
+        for (const pad of pads) {
+          const empty = padSeats.indexOf(null);
+          if (empty >= 0 && !padSeats.includes(pad.index)) padSeats[empty] = pad.index;
+        }
+        const first = pads.find(pad => pad.index === padSeats[0]);
+        const second = pads.find(pad => pad.index === padSeats[1]);
+        for (const entry of BUTTONS) {
+          const code = bindings[entry.id].pad;
+          const held = Boolean(code && first) && padInputActive(first, code);
+          if (held !== padHeld.has(entry.id)) {
+            if (held) padHeld.add(entry.id); else padHeld.delete(entry.id);
+            syncButton(entry);
+          }
+          const held2 = Boolean(code && second) && padInputActive(second, code);
+          if (held2 !== padHeld2.has(entry.id)) {
+            if (held2) padHeld2.add(entry.id); else padHeld2.delete(entry.id);
+            syncButton2(entry);
+          }
+        }
+      }
+      requestAnimationFrame(pollGamepads);
+    }
+
+    function updateStartHint() {
+      if (!running || status.dataset.hint !== "start") return;
+      const { key, pad } = bindings.start;
+      const choices = [key && keyLabel(key), pad && "gamepad " + padLabel(pad)].filter(Boolean);
+      if (matchMedia("(any-pointer: coarse)").matches) choices.unshift("the on-screen Start button");
+      status.textContent = choices.length
+        ? `Press ${choices.join(" or ")} to begin (sound starts on your first interaction).`
+        : "Start has no control assigned. Set one under Controls.";
+    }
+
+    // ---- Display --------------------------------------------------------
+    // Everyone can switch effects on or off. Tuning values, including the
+    // numeric URL parameters, only apply with ?dev in the address.
+    const DISPLAY_KEY = "wander.display.v1";
+    const TUNING_KEY = "wander.tuning.v1";
+    const EFFECTS = [
+      { id: "glow", label: "Glow" },
+      { id: "mask", label: "CRT" },
+      { id: "aberration", label: "Fringe" },
+      { id: "vignette", label: "Vignette" }
+    ];
+    // param is the URL name; the existing ?mask=, ?glow= etc. links keep working.
+    const TUNING = [
+      { id: "glow", param: "glow", label: "Glow strength", min: 0, max: 3, step: 0.05 },
+      { id: "glowSize", param: "glowsize", label: "Glow radius", min: 0.25, max: 3, step: 0.05 },
+      { id: "glowCurve", param: "glowcurve", label: "Glow curve", min: 1, max: 6, step: 0.1 },
+      { id: "maskStrength", param: "mask", label: "CRT strength", min: 0, max: 1, step: 0.01 },
+      { id: "aberration", param: "aberration", label: "Fringe (px)", min: 0, max: 4, step: 0.05 },
+      { id: "vignette", param: "vignette", label: "Vignette strength", min: 0, max: 1, step: 0.01 },
+      { id: "vignetteStart", param: "vignettestart", label: "Vignette start", min: 0, max: 1.12, step: 0.01 },
+      { id: "vignetteEnd", param: "vignetteend", label: "Vignette end", min: 0.1, max: 1.6, step: 0.01 }
+    ];
+    const enabledEffects = Object.fromEntries(EFFECTS.map(({ id }) => [id, true]));
+    const tuning = {};
+
+    function loadDisplaySettings() {
+      const saved = loadSaved(DISPLAY_KEY);
+      for (const { id } of EFFECTS) {
+        if (typeof saved[id] === "boolean") enabledEffects[id] = saved[id];
+      }
+      if (!devMode) return;
+      const savedTuning = loadSaved(TUNING_KEY);
+      for (const { id, param, min, max } of TUNING) {
+        const fromUrl = Number.parseFloat(params.get(param));
+        const value = Number.isFinite(fromUrl) ? fromUrl : savedTuning[id];
+        if (Number.isFinite(value)) tuning[id] = Math.min(max, Math.max(min, value));
+      }
+    }
+
+    function renderEffects() {
+      const container = document.getElementById("effects");
+      container.replaceChildren(...EFFECTS.map(({ id, label }) => {
+        const wrapper = document.createElement("label");
+        wrapper.className = "check";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = enabledEffects[id];
+        box.disabled = !glScreen;
+        box.addEventListener("change", () => {
+          enabledEffects[id] = box.checked;
+          save(DISPLAY_KEY, enabledEffects);
+          glScreen?.configure({ enabled: { [id]: box.checked } });
+          updateDisplayNote();
+        });
+        wrapper.append(box, label);
+        return wrapper;
+      }));
+      updateDisplayNote();
+    }
+
+    function updateDisplayNote() {
+      const note = document.getElementById("display-note");
+      let text = "";
+      if (!emulator) text = "";
+      else if (!glScreen) {
+        text = params.get("renderer") === "2d" ? "Screen effects are off because the address has renderer=2d."
+          : "Screen effects need WebGL2, which isn't available here.";
+      }
+      else if (enabledEffects.mask && glScreen.scale < 3) {
+        text = "The CRT effect shows only when the screen is at least 3× the NES resolution. Widen the window to see it.";
+      }
+      note.textContent = text;
+      note.hidden = !text;
+    }
+
+    const sliderInputs = new Map();
+    function renderSliders() {
+      const container = document.getElementById("sliders");
+      const values = glScreen ? glScreen.settings : { ...GL_SCREEN_DEFAULTS, ...tuning };
+      for (const { id, label, min, max, step } of TUNING) {
+        const input = document.createElement("input");
+        const name = document.createElement("label");
+        const output = document.createElement("output");
+        input.type = "range";
+        input.id = "tune-" + id;
+        Object.assign(input, { min, max, step, value: values[id], disabled: !glScreen });
+        name.htmlFor = input.id;
+        name.textContent = label;
+        output.value = Number(values[id]).toFixed(2);
+        input.addEventListener("input", () => {
+          const value = Number(input.value);
+          tuning[id] = value;
+          output.value = value.toFixed(2);
+          save(TUNING_KEY, tuning);
+          glScreen?.configure({ [id]: value });
+        });
+        sliderInputs.set(id, { input, output });
+        container.append(name, input, output);
+      }
+    }
+
+    function setupDevPanel() {
+      if (!devMode) return;
+      document.getElementById("dev-panel").hidden = false;
+      renderSliders();
+      const tuningStatus = document.getElementById("tuning-status");
+      document.getElementById("reset-tuning").addEventListener("click", () => {
+        for (const key of Object.keys(tuning)) delete tuning[key];
+        save(TUNING_KEY, tuning);
+        glScreen?.configure({ ...GL_SCREEN_DEFAULTS });
+        for (const { id } of TUNING) {
+          const { input, output } = sliderInputs.get(id);
+          input.value = GL_SCREEN_DEFAULTS[id];
+          output.value = GL_SCREEN_DEFAULTS[id].toFixed(2);
+        }
+        tuningStatus.textContent = "Values reset.";
+      });
+      document.getElementById("copy-tuning").addEventListener("click", async () => {
+        const url = new URL(location.href);
+        const values = glScreen ? glScreen.settings : GL_SCREEN_DEFAULTS;
+        for (const { id, param } of TUNING) {
+          if (values[id] === GL_SCREEN_DEFAULTS[id]) url.searchParams.delete(param);
+          else url.searchParams.set(param, String(values[id]));
+        }
+        try {
+          await navigator.clipboard.writeText(url.href);
+          tuningStatus.textContent = "Link copied.";
+        } catch {
+          tuningStatus.textContent = url.href;
+        }
+      });
+    }
+
+    // ---- Emulator -------------------------------------------------------
+    // JSNES 2.1.0 builds its APU at 44.1 kHz (it asks the speakers for their
+    // rate before their AudioContext exists), then opens the AudioContext at
+    // the device's native rate. Above 44.1 kHz the audio drains faster than
+    // the game fills it. Pin the context to the APU rate to avoid gaps;
+    // installFrameClock separately prevents audio from accelerating gameplay.
+    const NativeAudioContext = window.AudioContext;
+    if (NativeAudioContext) {
+      window.AudioContext = class extends NativeAudioContext {
+        constructor(options) { super({ ...options, sampleRate: 44100 }); }
+      };
+    }
+
+    function pause() {
+      if (!running) return;
+      emulator.stop();
+      releaseButtons();
+      running = false;
+      play.textContent = "Resume";
+      status.dataset.hint = "";
+      status.textContent = "Paused.";
+    }
+
+    function reportError(error) {
+      pause();
+      failed = true;
+      play.disabled = true;
+      restart.disabled = true;
+      status.dataset.hint = "";
+      status.textContent = "Could not run the game: " + error.message;
+      console.error(error);
+    }
+
+    // focusScreen is false for the page-load autostart: focusing without a user
+    // interaction makes browsers draw the :focus-visible outline. Keys are read
+    // at the document level, so the screen doesn't need focus to play.
+    function start(fresh = false, focusScreen = true) {
+      try {
+        failed = false;
+        if (!emulator) {
+          emulator = new jsnes.Browser({ container: screen, onError: reportError });
+          installFrameClock(emulator);
+          // Scale both audio channels before they reach JSNES's output buffer.
+          // Keep audio emulation/timing active even when the output is muted.
+          const writeSample = emulator.nes.opts.onAudioSample;
+          emulator.nes.opts.onAudioSample = (left, right) => {
+            writeSample(left * audioGain, right * audioGain);
+          };
+          // This page reads the keyboard and gamepads itself, with its own
+          // saved bindings, instead of JSNES's site-wide key map and gamepad config.
+          document.removeEventListener("keydown", emulator.keyboard.handleKeyDown);
+          document.removeEventListener("keyup", emulator.keyboard.handleKeyUp);
+          document.removeEventListener("keypress", emulator.keyboard.handleKeyPress);
+          emulator._gamepadPolling.stop();
+          // Route frames through WebGL. ?renderer=2d compares with the stock
+          // canvas. Uses JSNES 2.1.0 internals: _screen.buf is the RGBA frame
+          // buffer and _frameTimer.onWriteFrame is the per-frame present.
+          glScreen = params.get("renderer") === "2d" ? null
+            : createGLScreen(screen, new Uint8Array(emulator._screen.buf), { ...tuning, enabled: enabledEffects });
+          if (glScreen) {
+            emulator._screen.canvas.style.display = "none";
+            emulator._frameTimer.onWriteFrame = glScreen.draw;
+            new ResizeObserver(updateDisplayNote).observe(screen);
+          }
+          console.info("Renderer:", glScreen ? "WebGL2" : "2D canvas");
+          renderEffects();
+          for (const { input } of sliderInputs.values()) input.disabled = !glScreen;
+          fresh = true;
+        }
+        releaseButtons();
+        running = true;
+        if (fresh) emulator.loadROM(rom);
+        else emulator.start();
+        if (failed) return;
+        play.textContent = "Pause";
+        restart.disabled = false;
+        if (fresh) {
+          status.dataset.hint = "start";
+          updateStartHint();
+        } else {
+          status.dataset.hint = "";
+          status.textContent = "Playing.";
+        }
+        if (focusScreen) screen.focus({ preventScroll: true });
+      } catch (error) { reportError(error); }
+    }
+
+    play.addEventListener("click", () => running ? pause() : start());
+    restart.addEventListener("click", () => {
+      pause();
+      if (window.confirm("Restart and clear your current progress?")) start(true);
+    });
+    window.addEventListener("blur", pause);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+    new ResizeObserver(() => emulator?.fitInParent()).observe(screen);
+
+    loadBindings();
+    buildBindings();
+    loadDisplaySettings();
+    renderEffects();
+    setupDevPanel();
+    requestAnimationFrame(pollGamepads);
+
+    async function load() {
+      try {
+        if (!window.jsnes?.Browser) throw new Error("jsnes.min.js is missing or incompatible. Please contact the site owner.");
+        if (location.protocol === "file:") throw new Error("Open this page through a web server.");
+        if (!window.isSecureContext) throw new Error("Open this page over HTTPS so browser audio can work.");
+        const response = await fetch("./wander.nes", { cache: "no-store" });
+        if (!response.ok) throw new Error("Game download failed (HTTP " + response.status + ").");
+        rom = new Uint8Array(await response.arrayBuffer());
+        if (rom[0] !== 0x4e || rom[1] !== 0x45 || rom[2] !== 0x53 || rom[3] !== 0x1a) {
+          throw new Error("The server did not return a valid NES ROM.");
+        }
+        play.disabled = false;
+        // Autostart. Browsers keep audio suspended until a user gesture;
+        // JSNES resumes it on the first keydown, mousedown, or touchstart.
+        start(true, false);
+      } catch (error) { reportError(error); }
+    }
+    load();
+  </script>
+</body>
+</html>

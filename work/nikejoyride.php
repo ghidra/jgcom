@@ -2,7 +2,7 @@
 $payload = new stdClass();
 
 $payload->title="Nike Joyride";
-$payload->video="https://player.vimeo.com/video/355403542?title=0&byline=0&portrait=0";
+$payload->video="https://www.youtube.com/embed/UPNt3hsxsow";
 $payload->description="Lead the team on an experiential project using touch sensitve LED floor tiles. Games were built in unity, with a custom built compute shader particle simulation. I specifically connected game logic with the particle compute layer to connect the 2 systems to make the balls behave in a cohesive way.";
 
 /*<h4>Nike Joyride</h4><!--width="640" height="360"-->
