@@ -6,9 +6,14 @@ if ( isset($_GET['q'])  )
 
 	if($q=='get_page')
 	{
-		//echo json_encode("something");
-		include_once($_GET['page']);
-		echo json_encode($payload);
+		// only plain names from work/; never include a path from the request
+		$name = basename($_GET['page'] ?? '', '.php');
+		$file = __DIR__ . "/work/$name.php";
+		if (preg_match('/^[a-z0-9_-]+$/i', $name) && is_file($file))
+		{
+			include_once($file);
+			echo json_encode($payload);
+		}
 	}
 }
 
